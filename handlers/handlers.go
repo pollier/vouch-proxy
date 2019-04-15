@@ -209,12 +209,9 @@ func ValidateRequestHandler(w http.ResponseWriter, r *http.Request) {
 						w.Header().Add(customHeader, val)
 						log.Debug("Adding header for claim: ", k, " Name: ", customHeader, " Value: ", val)
 					} else if val, ok := v.([]interface{}); ok {
-						strs := make([]string, len(val))
-						for i, v := range val {
-							strs[i] = fmt.Sprintf("\"%s\"", v)
-						}
-						log.Debug("Adding header for claim: ", k, " Name: ", customHeader, " Value: ", strings.Join(strs, ","))
-						w.Header().Add(customHeader, strings.Join(strs, ","))
+                                                strs, _ := json.Marshal(val)
+                                                log.Debug("Adding header for claim: ", k, " Name: ", customHeader, " Value: ", string(strs))
+                                                w.Header().Add(customHeader, string(strs))
 					} else {
 						log.Error("Couldn't parse header type.  Please submit an issue.")
 					}
