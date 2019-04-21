@@ -1,4 +1,8 @@
 # Vouch Proxy
+[![Build Status](https://travis-ci.com/vouch/vouch-proxy.svg?branch=master)](https://travis-ci.com/vouch/vouch-proxy)
+[!["Open Issues"](https://img.shields.io/github/issues-raw/vouch/vouch-proxy.svg)](https://github.com/vouch/vouch-proxy/issues)
+[![Go Report Card](https://goreportcard.com/badge/github.com/vouch/vouch-proxy)](https://goreportcard.com/report/github.com/vouch/vouch-proxy)
+[![MIT license](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/vouch/vouch-proxy/blob/master/LICENSE)
 
 an SSO solution for Nginx using the [auth_request](http://nginx.org/en/docs/http/ngx_http_auth_request_module.html) module.
 
