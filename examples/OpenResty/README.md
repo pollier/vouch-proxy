@@ -5,7 +5,7 @@ OpenResty® is a full-fledged web platform that integrates the standard Nginx co
 
 ## Instructions
 
-You can replace nginx with OpenResty very easily. OpenResty installation documents can be found here: [here](https://openresty.org/en/installation.html)
+You can replace nginx with OpenResty very easily. OpenResty installation documents can be found [here](https://openresty.org/en/installation.html).
 
 
 | File                              | Description |
