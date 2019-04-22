@@ -105,3 +105,8 @@ type Site struct {
 	LastUpdate int64  `json:"lastupdate"`
 	ID         int    `json:"id",mapstructure:"id"`
 }
+
+type PTokens struct {
+	PAccessToken string
+	PIdToken     string
+}
