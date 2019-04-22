@@ -77,6 +77,14 @@ vouch:
     jwt: X-Vouch-Token
     querystring: access_token
     redirect: X-Vouch-Requested-URI
+    # Customizable claim header. By default claims are sent down as headers with a prefix of X-Vouch-IdP-Claims-ClaimKey
+    # if you set this option.
+    # claimheader: My-Custom-Claim-Prefix
+    # Claims is a list of claims that will be stored in the JWT and passed down to applications via headers
+    # Only when a claim is found in the user's info will the header exist.  This is optional.  These are case sensitive.
+    #claims:
+    #  - groups
+    #  - given_name
     # accesstoken: Pass the user's access token from the provider.  This is useful if you need to pass this token to a downstream
     # application. This is optional.
     # accesstoken: X-Vouch-IdP-AccessToken

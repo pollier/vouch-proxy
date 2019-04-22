@@ -55,9 +55,12 @@ server {
 
       # optionally add X-Vouch-User as returned by Vouch Proxy along with the request
       auth_request_set $auth_resp_x_vouch_user $upstream_http_x_vouch_user;
+      # optionally add X-Vouch-IdP-Claims-* custom claims you are tracking
+      #    auth_request_set $auth_resp_x_vouch_idp_claims_groups $upstream_http_x_vouch_idp_claims_groups;
+      #    auth_request_set $auth_resp_x_vouch_idp_claims_given_name $upstream_http_x_vouch_idp_claims_given_name;
       # optinally add X-Vouch-IdP-AccessToken or IdToken 
-      auth_request_set $auth_resp_x_vouch_idp_accesstoken $upstream_http_x_vouch_idp_accesstoken;
-      auth_request_set $auth_resp_x_vouch_idp_idtoken $upstream_http_x_vouch_idp_idtoken;
+      #    auth_request_set $auth_resp_x_vouch_idp_accesstoken $upstream_http_x_vouch_idp_accesstoken;
+      #    auth_request_set $auth_resp_x_vouch_idp_idtoken $upstream_http_x_vouch_idp_idtoken;
 
       # these return values are used by the @error401 call
       auth_request_set $auth_resp_jwt $upstream_http_x_vouch_jwt;
@@ -86,14 +89,19 @@ server {
       proxy_pass http://127.0.0.1:8080;
       # you may need to set
       #    auth_request_set $auth_resp_x_vouch_user $upstream_http_x_vouch_user
+      #    auth_request_set $auth_resp_x_vouch_idp_claims_groups $upstream_http_x_vouch_idp_claims_groups;
+      #    auth_request_set $auth_resp_x_vouch_idp_claims_given_name $upstream_http_x_vouch_idp_claims_given_name;
       #    auth_request_set $auth_resp_x_vouch_idp_accesstoken $upstream_http_x_vouch_idp_accesstoken;
       #    auth_request_set $auth_resp_x_vouch_idp_idtoken $upstream_http_x_vouch_idp_idtoken;
       #  in this bock as per https://github.com/vouch/vouch-proxy/issues/26#issuecomment-425215810
       # set user header (usually an email)
       proxy_set_header X-Vouch-User $auth_resp_x_vouch_user;
+      # Pass any other custom claims you are tracking
+      # proxy_set_header X-Vouch-IdP-Claims-Groups $auth_resp_x_vouch_idp_claims_groups;
+      # proxy_set_header X-Vouch-IdP-Claims-Given_Name $auth_resp_x_vouch_idp_claims_given_name;
       # optionally pass the accesstoken or idtoken 
-      proxy_set_header X-Vouch-IdP-AccessToken $auth_resp_x_vouch_idp_accesstoken;
-      proxy_set_header X-Vouch-IdP-IdToken $auth_resp_x_vouch_idp_idtoken;
+      # proxy_set_header X-Vouch-IdP-AccessToken $auth_resp_x_vouch_idp_accesstoken;
+      # proxy_set_header X-Vouch-IdP-IdToken $auth_resp_x_vouch_idp_idtoken;
     }
 }
 

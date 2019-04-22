@@ -137,6 +137,7 @@ func ClaimsFromJWT(jwt string) (jwtmanager.VouchClaims, error) {
 		// if claims == &jwtmanager.VouchClaims{} {
 		return claims, err
 	}
+	log.Debugf("JWT Claims: %+v", claims)
 	return claims, nil
 }
 
@@ -194,6 +195,30 @@ func ValidateRequestHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if len(cfg.Cfg.Headers.Claims) > 0 {
+		log.Debug("Found claims in config, finding specific keys...")
+		// Run through all the claims found
+		for k, v := range claims.CustomClaims {
+			// Run through the claims we are looking for
+			for _, cv := range cfg.Cfg.Headers.Claims {
+				// Check for matching claim
+				if cv == k {
+					log.Debug("Found matching claim key: ", k)
+					customHeader := strings.Join([]string{cfg.Cfg.Headers.ClaimHeader, k}, "")
+					if val, ok := v.(string); ok {
+						w.Header().Add(customHeader, val)
+						log.Debug("Adding header for claim: ", k, " Name: ", customHeader, " Value: ", val)
+					} else if val, ok := v.([]interface{}); ok {
+                                                strs, _ := json.Marshal(val)
+                                                log.Debug("Adding header for claim: ", k, " Name: ", customHeader, " Value: ", string(strs))
+                                                w.Header().Add(customHeader, string(strs))
+					} else {
+						log.Error("Couldn't parse header type.  Please submit an issue.")
+					}
+				}
+			}
+		}
+	}
 
 	w.Header().Add(cfg.Cfg.Headers.User, claims.Username)
 	w.Header().Add(cfg.Cfg.Headers.Success, "true")
@@ -207,8 +232,7 @@ func ValidateRequestHandler(w http.ResponseWriter, r *http.Request) {
 			w.Header().Add(cfg.Cfg.Headers.IdToken, claims.PIdToken)
 		}
 	}
-	fastlog.Debug("response header",
-		zap.String(cfg.Cfg.Headers.User, w.Header().Get(cfg.Cfg.Headers.User)))
+	log.Debugf("response header %+v", w.Header())
 
 	// good to go!!
 	if cfg.Cfg.Testing {
@@ -408,13 +432,14 @@ func CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := structs.User{}
+	customClaims := structs.CustomClaims{}
 	ptokens := structs.PTokens{}
-	if err := getUserInfo(r, &user, &ptokens); err != nil {
+	if err := getUserInfo(r, &user, &customClaims, &ptokens); err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	//getProviderJWT(r, &user)
+	log.Debugf("Claims from userinfo: %+v", customClaims)
 	log.Debug("CallbackHandler")
 	log.Debug(user)
 
@@ -430,7 +455,7 @@ func CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	model.PutUser(user)
 
 	// issue the jwt
-	tokenstring := jwtmanager.CreateUserTokenString(user, ptokens)
+	tokenstring := jwtmanager.CreateUserTokenString(user, customClaims, ptokens)
 	cookie.SetCookie(w, r, tokenstring)
 
 	// get the originally requested URL so we can send them on their way
@@ -450,13 +475,13 @@ func CallbackHandler(w http.ResponseWriter, r *http.Request) {
 
 // TODO: put all getUserInfo logic into its own pkg
 
-func getUserInfo(r *http.Request, user *structs.User, ptokens *structs.PTokens) error {
+func getUserInfo(r *http.Request, user *structs.User, ptokens *structs.CustomClaims, *structs.PTokens) error {
 
 	// indieauth sends the "me" setting in json back to the callback, so just pluck it from the callback
 	if cfg.GenOAuth.Provider == cfg.Providers.IndieAuth {
-		return getUserInfoFromIndieAuth(r, user)
+		return getUserInfoFromIndieAuth(r, user, customClaims)
 	} else if cfg.GenOAuth.Provider == cfg.Providers.ADFS {
-		return getUserInfoFromADFS(r, user)
+		return getUserInfoFromADFS(r, user, customClaims)
 	}
 	providerToken, err := cfg.OAuthClient.Exchange(context.TODO(), r.URL.Query().Get("code"))
 	if err != nil {
@@ -468,17 +493,17 @@ func getUserInfo(r *http.Request, user *structs.User, ptokens *structs.PTokens) 
 	// make the "third leg" request back to google to exchange the token for the userinfo
 	client := cfg.OAuthClient.Client(context.TODO(), providerToken)
 	if cfg.GenOAuth.Provider == cfg.Providers.Google {
-		return getUserInfoFromGoogle(client, user)
+		return getUserInfoFromGoogle(client, user, customClaims)
 	} else if cfg.GenOAuth.Provider == cfg.Providers.GitHub {
-		return getUserInfoFromGitHub(client, user, providerToken)
+		return getUserInfoFromGitHub(client, user, customClaims, providerToken)
 	} else if cfg.GenOAuth.Provider == cfg.Providers.OIDC {
-		return getUserInfoFromOpenID(client, user, providerToken)
+		return getUserInfoFromOpenID(client, user, customClaims, providerToken)
 	}
 	log.Error("we don't know how to look up the user info")
 	return nil
 }
 
-func getUserInfoFromOpenID(client *http.Client, user *structs.User, ptoken *oauth2.Token) error {
+func getUserInfoFromOpenID(client *http.Client, user *structs.User, customClaims *structs.CustomClaims, ptoken *oauth2.Token) error {
 	userinfo, err := client.Get(cfg.GenOAuth.UserInfoURL)
 	if err != nil {
 		return err
@@ -486,6 +511,10 @@ func getUserInfoFromOpenID(client *http.Client, user *structs.User, ptoken *oaut
 	defer userinfo.Body.Close()
 	data, _ := ioutil.ReadAll(userinfo.Body)
 	log.Infof("OpenID userinfo body: ", string(data))
+	if err = mapClaims(data, customClaims); err != nil {
+		log.Error(err)
+		return err
+	}
 	if err = json.Unmarshal(data, user); err != nil {
 		log.Error(err)
 		return err
@@ -494,7 +523,7 @@ func getUserInfoFromOpenID(client *http.Client, user *structs.User, ptoken *oaut
 	return nil
 }
 
-func getUserInfoFromGoogle(client *http.Client, user *structs.User) error {
+func getUserInfoFromGoogle(client *http.Client, user *structs.User, customClaims *structs.CustomClaims) error {
 	userinfo, err := client.Get(cfg.GenOAuth.UserInfoURL)
 	if err != nil {
 		return err
@@ -502,6 +531,10 @@ func getUserInfoFromGoogle(client *http.Client, user *structs.User) error {
 	defer userinfo.Body.Close()
 	data, _ := ioutil.ReadAll(userinfo.Body)
 	log.Infof("google userinfo body: ", string(data))
+	if err = mapClaims(data, customClaims); err != nil {
+		log.Error(err)
+		return err
+	}
 	if err = json.Unmarshal(data, user); err != nil {
 		log.Error(err)
 		return err
@@ -513,7 +546,7 @@ func getUserInfoFromGoogle(client *http.Client, user *structs.User) error {
 
 // github
 // https://developer.github.com/apps/building-integrations/setting-up-and-registering-oauth-apps/about-authorization-options-for-oauth-apps/
-func getUserInfoFromGitHub(client *http.Client, user *structs.User, ptoken *oauth2.Token) error {
+func getUserInfoFromGitHub(client *http.Client, user *structs.User, customClaims *structs.CustomClaims, ptoken *oauth2.Token) error {
 
 	log.Errorf("ptoken.AccessToken: %s", ptoken.AccessToken)
 	userinfo, err := client.Get(cfg.GenOAuth.UserInfoURL + ptoken.AccessToken)
@@ -524,6 +557,10 @@ func getUserInfoFromGitHub(client *http.Client, user *structs.User, ptoken *oaut
 	defer userinfo.Body.Close()
 	data, _ := ioutil.ReadAll(userinfo.Body)
 	log.Infof("github userinfo body: ", string(data))
+	if err = mapClaims(data, customClaims); err != nil {
+		log.Error(err)
+		return err
+	}
 	ghUser := structs.GitHubUser{}
 	if err = json.Unmarshal(data, &ghUser); err != nil {
 		log.Error(err)
@@ -546,7 +583,7 @@ func getUserInfoFromGitHub(client *http.Client, user *structs.User, ptoken *oaut
 	return nil
 }
 
-func getUserInfoFromIndieAuth(r *http.Request, user *structs.User) error {
+func getUserInfoFromIndieAuth(r *http.Request, user *structs.User, customClaims *structs.CustomClaims) error {
 
 	code := r.URL.Query().Get("code")
 	log.Errorf("ptoken.AccessToken: %s", code)
@@ -592,6 +629,10 @@ func getUserInfoFromIndieAuth(r *http.Request, user *structs.User) error {
 	defer userinfo.Body.Close()
 	data, _ := ioutil.ReadAll(userinfo.Body)
 	log.Infof("indieauth userinfo body: ", string(data))
+	if err = mapClaims(data, customClaims); err != nil {
+		log.Error(err)
+		return err
+	}
 	iaUser := structs.IndieAuthUser{}
 	if err = json.Unmarshal(data, &iaUser); err != nil {
 		log.Error(err)
@@ -611,7 +652,7 @@ type adfsTokenRes struct {
 }
 
 // More info: https://docs.microsoft.com/en-us/windows-server/identity/ad-fs/overview/ad-fs-scenarios-for-developers#supported-scenarios
-func getUserInfoFromADFS(r *http.Request, user *structs.User) error {
+func getUserInfoFromADFS(r *http.Request, user *structs.User, customClaims *structs.CustomClaims) error {
 	code := r.URL.Query().Get("code")
 	log.Debugf("code: %s", code)
 
@@ -661,11 +702,15 @@ func getUserInfoFromADFS(r *http.Request, user *structs.User) error {
 
 	adfsUser := structs.ADFSUser{}
 	json.Unmarshal([]byte(idToken), &adfsUser)
-	log.Infof("adfs adfsUser: ", adfsUser)
-
+	log.Infof("adfs adfsUser: %+v", adfsUser)
+	if err = mapClaims([]byte(idToken), customClaims); err != nil {
+		log.Error(err)
+		return err
+	}
 	adfsUser.PrepareUserData()
 	user.Username = adfsUser.Username
-	log.Debug(user)
+	user.Email = adfsUser.Email
+	log.Debugf("User Obj: %+v", user)
 	return nil
 }
 
@@ -698,4 +743,28 @@ func ok200(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Error(err)
 	}
+}
+
+func mapClaims(claims []byte, customClaims *structs.CustomClaims) error {
+	// Create a struct that contains the claims that we want to store from the config.
+	var f interface{}
+	err := json.Unmarshal(claims, &f)
+	if err != nil {
+		log.Error("Error unmarshaling claims")
+		return err
+	}
+	m := f.(map[string]interface{})
+	for k := range m {
+		var found = false
+		for _, e := range cfg.Cfg.Headers.Claims {
+			if k == e {
+				found = true
+			}
+		}
+		if found == false {
+			delete(m, k)
+		}
+	}
+	customClaims.Claims = m
+	return nil
 }

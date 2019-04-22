@@ -44,6 +44,7 @@ type config struct {
 		HTTPOnly bool   `mapstructure:"httpOnly"`
 		MaxAge   int    `mapstructure:"maxage"`
 	}
+
 	Headers struct {
 		JWT         string `mapstructure:"jwt"`
 		User        string `mapstructure:"user"`
@@ -254,11 +255,17 @@ func ParseConfig() {
 		log.Fatalf("Fatal error config file: %s", err.Error())
 		panic(err)
 	}
-	UnmarshalKey(Branding.LCName, &Cfg)
+	err = UnmarshalKey(Branding.LCName, &Cfg)
+	if err != nil {
+		log.Errorf("Couldn't unmarshal configuration")
+	}
 	if len(Cfg.Domains) == 0 {
 		// then lets check for "lasso"
 		var oldConfig config
-		UnmarshalKey(Branding.OldLCName, &oldConfig)
+		err = UnmarshalKey(Branding.OldLCName, &oldConfig)
+		if err != nil {
+			log.Errorf("Couldn't unmarshal configuration")
+		}
 		if len(oldConfig.Domains) != 0 {
 			log.Errorf(`						
 
@@ -452,6 +459,9 @@ func SetDefaults() {
 	}
 	if !viper.IsSet(Branding.LCName + ".headers.success") {
 		Cfg.Headers.Success = "X-" + Branding.CcName + "-Success"
+	}
+	if !viper.IsSet(Branding.LCName + ".headers.claimheader") {
+		Cfg.Headers.ClaimHeader = "X-" + Branding.CcName + "-IdP-Claims-"
 	}
 
 	// db defaults
