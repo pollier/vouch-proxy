@@ -18,7 +18,4 @@ You can replace nginx with OpenResty very easily. OpenResty installation documen
 | conf.d/unauthenticated_app3.yourdomain.com.conf | A simple configuration for an unauthenticated application or page.  This could be a terms of service, license, or generic help page.  It could also be some application or API endpoint that you simply don't want to authenticate.  |
 | conf.d/vouch.yourdomain.com.conf  | Configuration for exposing vouch at the proxy using https to a vouch instance on localhost.  This configuration supports secure cookies. |
 
-Configure nginx....
-
-Update the authorized_users and authorized_groups tables as needed.
 With OpenResty and Lua it is possible to provide customized and advanced authorization on any header or claims vouch passes down.
