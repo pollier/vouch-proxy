@@ -46,13 +46,15 @@ type config struct {
 	}
 
 	Headers struct {
-		JWT         string `mapstructure:"jwt"`
-		User        string `mapstructure:"user"`
-		QueryString string `mapstructure:"querystring"`
-		Redirect    string `mapstructure:"redirect"`
-		Success     string `mapstructure:"success"`
-		AccessToken string `mapstructure:"accesstoken"`
-		IdToken     string `mapstructure:"idtoken"`
+		JWT         string   `mapstructure:"jwt"`
+		User        string   `mapstructure:"user"`
+		QueryString string   `mapstructure:"querystring"`
+		Redirect    string   `mapstructure:"redirect"`
+		Success     string   `mapstructure:"success"`
+		AccessToken string   `mapstructure:"accesstoken"`
+		IdToken     string   `mapstructure:"idtoken"`
+		ClaimHeader string   `mapstructure:"claimheader"`
+		Claims      []string `mapstructure:"claims"`
 	}
 	DB struct {
 		File string `mapstructure:"file"`

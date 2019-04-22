@@ -111,10 +111,8 @@ func TokenIsValid(token *jwt.Token, err error) bool {
 
 // SiteInToken searches does the token contain the site?
 func SiteInToken(site string, token *jwt.Token) bool {
-	if claims, ok := token.Claims.(*
-                                
-                                
-                                ); ok {
+	if claims, ok := token.Claims.(*VouchClaims); ok {
+
 		log.Debugf("site %s claim %v", site, claims)
 		if SiteInClaims(site, claims) {
 			return true

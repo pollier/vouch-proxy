@@ -209,9 +209,9 @@ func ValidateRequestHandler(w http.ResponseWriter, r *http.Request) {
 						w.Header().Add(customHeader, val)
 						log.Debug("Adding header for claim: ", k, " Name: ", customHeader, " Value: ", val)
 					} else if val, ok := v.([]interface{}); ok {
-                                                strs, _ := json.Marshal(val)
-                                                log.Debug("Adding header for claim: ", k, " Name: ", customHeader, " Value: ", string(strs))
-                                                w.Header().Add(customHeader, string(strs))
+						strs, _ := json.Marshal(val)
+						log.Debug("Adding header for claim: ", k, " Name: ", customHeader, " Value: ", string(strs))
+						w.Header().Add(customHeader, string(strs))
 					} else {
 						log.Error("Couldn't parse header type.  Please submit an issue.")
 					}
@@ -475,7 +475,7 @@ func CallbackHandler(w http.ResponseWriter, r *http.Request) {
 
 // TODO: put all getUserInfo logic into its own pkg
 
-func getUserInfo(r *http.Request, user *structs.User, ptokens *structs.CustomClaims, *structs.PTokens) error {
+func getUserInfo(r *http.Request, user *structs.User, customClaims *structs.CustomClaims, ptokens *structs.PTokens) error {
 
 	// indieauth sends the "me" setting in json back to the callback, so just pluck it from the callback
 	if cfg.GenOAuth.Provider == cfg.Providers.IndieAuth {
