@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"go.uber.org/zap"
 	"html/template"
 	"io/ioutil"
 	"mime/multipart"
@@ -12,8 +14,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-
-	"go.uber.org/zap"
 
 	securerandom "github.com/theckman/go-securerandom"
 
@@ -222,6 +222,16 @@ func ValidateRequestHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Add(cfg.Cfg.Headers.User, claims.Username)
 	w.Header().Add(cfg.Cfg.Headers.Success, "true")
+	if cfg.Cfg.Headers.AccessToken != "" {
+		if claims.PAccessToken != "" {
+			w.Header().Add(cfg.Cfg.Headers.AccessToken, claims.PAccessToken)
+		}
+	}
+	if cfg.Cfg.Headers.IdToken != "" {
+		if claims.PIdToken != "" {
+			w.Header().Add(cfg.Cfg.Headers.IdToken, claims.PIdToken)
+		}
+	}
 	log.Debugf("response header %+v", w.Header())
 
 	// good to go!!
@@ -423,8 +433,8 @@ func CallbackHandler(w http.ResponseWriter, r *http.Request) {
 
 	user := structs.User{}
 	customClaims := structs.CustomClaims{}
-
-	if err := getUserInfo(r, &user, &customClaims); err != nil {
+	ptokens := structs.PTokens{}
+	if err := getUserInfo(r, &user, &customClaims, &ptokens); err != nil {
 		log.Error(err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -445,7 +455,7 @@ func CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	model.PutUser(user)
 
 	// issue the jwt
-	tokenstring := jwtmanager.CreateUserTokenString(user, customClaims)
+	tokenstring := jwtmanager.CreateUserTokenString(user, customClaims, ptokens)
 	cookie.SetCookie(w, r, tokenstring)
 
 	// get the originally requested URL so we can send them on their way
@@ -465,7 +475,7 @@ func CallbackHandler(w http.ResponseWriter, r *http.Request) {
 
 // TODO: put all getUserInfo logic into its own pkg
 
-func getUserInfo(r *http.Request, user *structs.User, customClaims *structs.CustomClaims) error {
+func getUserInfo(r *http.Request, user *structs.User, ptokens *structs.CustomClaims, *structs.PTokens) error {
 
 	// indieauth sends the "me" setting in json back to the callback, so just pluck it from the callback
 	if cfg.GenOAuth.Provider == cfg.Providers.IndieAuth {
@@ -473,14 +483,15 @@ func getUserInfo(r *http.Request, user *structs.User, customClaims *structs.Cust
 	} else if cfg.GenOAuth.Provider == cfg.Providers.ADFS {
 		return getUserInfoFromADFS(r, user, customClaims)
 	}
-
-	providerToken, err := cfg.OAuthClient.Exchange(oauth2.NoContext, r.URL.Query().Get("code"))
+	providerToken, err := cfg.OAuthClient.Exchange(context.TODO(), r.URL.Query().Get("code"))
 	if err != nil {
 		return err
 	}
+	ptokens.PAccessToken = providerToken.AccessToken
+	ptokens.PIdToken = providerToken.Extra("id_token").(string)
 
 	// make the "third leg" request back to google to exchange the token for the userinfo
-	client := cfg.OAuthClient.Client(oauth2.NoContext, providerToken)
+	client := cfg.OAuthClient.Client(context.TODO(), providerToken)
 	if cfg.GenOAuth.Provider == cfg.Providers.Google {
 		return getUserInfoFromGoogle(client, user, customClaims)
 	} else if cfg.GenOAuth.Provider == cfg.Providers.GitHub {
@@ -643,7 +654,7 @@ type adfsTokenRes struct {
 // More info: https://docs.microsoft.com/en-us/windows-server/identity/ad-fs/overview/ad-fs-scenarios-for-developers#supported-scenarios
 func getUserInfoFromADFS(r *http.Request, user *structs.User, customClaims *structs.CustomClaims) error {
 	code := r.URL.Query().Get("code")
-	log.Errorf("code: %s", code)
+	log.Debugf("code: %s", code)
 
 	formData := url.Values{}
 	formData.Set("code", code)
