@@ -32,7 +32,7 @@ If Vouch is running on the same host as the Nginx reverse proxy the response tim
 
 The following nginx config assumes..
 
-* nginx, vouch.yourdomain.com and dev.yourdomain.com are running on the same server
+* nginx, vouch.yourdomain.com and protectedapp.yourdomain.com are running on the same server
 * you are running both domains behind https and have valid certs for both (if not, change to `listen 80`)
 
 ```{.nginxconf}
